@@ -4,10 +4,11 @@ import ServiceManagement
 
 @main
 struct ClaudeUsageBarApp: App {
-    @StateObject private var model = UsageModel()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+    @StateObject private var model = UsageModel(autoStart: ScreenshotMode.outputDir == nil)
 
     var body: some Scene {
-        MenuBarExtra {
+        MenuBarExtra(isInserted: .constant(ScreenshotMode.outputDir == nil)) {
             UsagePanel(model: model)
         } label: {
             // Menüleiste: "5h 42% · W 18%"
@@ -33,7 +34,7 @@ final class UsageModel: ObservableObject {
     }
     @Published var refreshSeconds: Double = {
         let v = UserDefaults.standard.double(forKey: "refreshSeconds")
-        return v > 0 ? v : 60
+        return v > 0 ? v : 120
     }() {
         didSet { UserDefaults.standard.set(refreshSeconds, forKey: "refreshSeconds") }
     }
@@ -41,7 +42,11 @@ final class UsageModel: ObservableObject {
     private var fetchTimer: Timer?
     private var clockTimer: Timer?
 
-    init() {
+    /// Wird bei Rate-Limit (429) verdoppelt, bei Erfolg zurückgesetzt
+    private var backoffFactor: Double = 1
+
+    init(autoStart: Bool = true) {
+        guard autoStart else { return }
         Task { await refresh() }
         scheduleFetchTimer()
         // Countdown jede 30 s aktualisieren
@@ -58,7 +63,7 @@ final class UsageModel: ObservableObject {
 
     func scheduleFetchTimer() {
         fetchTimer?.invalidate()
-        fetchTimer = Timer.scheduledTimer(withTimeInterval: max(30, refreshSeconds), repeats: true) { [weak self] _ in
+        fetchTimer = Timer.scheduledTimer(withTimeInterval: max(30, refreshSeconds) * backoffFactor, repeats: true) { [weak self] _ in
             Task { await self?.refresh() }
         }
     }
@@ -71,6 +76,12 @@ final class UsageModel: ObservableObject {
             error = nil
             lastUpdate = Date()
             now = Date()
+            if backoffFactor != 1 { backoffFactor = 1; scheduleFetchTimer() }
+        } catch UsageError.http(429, _) {
+            backoffFactor = min(backoffFactor * 2, 10)
+            scheduleFetchTimer()
+            let next = Int(max(30, refreshSeconds) * backoffFactor)
+            self.error = "Rate-Limit erreicht – nächster Versuch in \(next >= 60 ? "\(next / 60) min" : "\(next) s")."
         } catch {
             self.error = error.localizedDescription
         }
@@ -146,7 +157,7 @@ struct UsagePanel: View {
             if let err = model.error {
                 Text(err)
                     .font(.caption)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(model.usage == nil ? .red : .orange)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -229,30 +240,45 @@ struct UsageRow: View {
                     .font(.subheadline.monospacedDigit().weight(.semibold))
                     .foregroundStyle(color)
             }
-            ProgressView(value: value)
-                .tint(color)
-            Text(resetText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.12))
+                    Capsule().fill(color.gradient)
+                        .frame(width: max(value > 0 ? 6 : 0, geo.size.width * value))
+                }
+            }
+            .frame(height: 6)
+            HStack {
+                Text(resetDate)
+                Spacer()
+                Text(countdown).monospacedDigit()
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 
-    private var resetText: String {
-        guard let raw = window?.resetsAt else { return "Kein aktives Fenster" }
-        let r = UsageModel.rounded(raw)
-        let secs = max(0, Int(r.timeIntervalSince(now)))
-        let d = secs / 86400, h = (secs % 86400) / 3600, m = (secs % 3600) / 60
-        let rel: String
-        if d > 0 { rel = "\(d) T \(h) Std \(m) Min" }
-        else if h > 0 { rel = "\(h) Std \(m) Min" }
-        else { rel = "\(m) Min" }
+    private var reset: Date? { window?.resetsAt.map(UsageModel.rounded) }
 
+    /// "Reset heute um 16:20 Uhr" / "Reset Mi, 25.11. um 14:00 Uhr"
+    private var resetDate: String {
+        guard let r = reset else { return "Kein aktives Fenster" }
         let f = DateFormatter()
         f.locale = Locale(identifier: "de_DE")
         let cal = Calendar.current
         if cal.isDateInToday(r) { f.dateFormat = "'heute um' HH:mm 'Uhr'" }
         else if cal.isDateInTomorrow(r) { f.dateFormat = "'morgen um' HH:mm 'Uhr'" }
-        else { f.dateFormat = "EEEE, dd.MM. 'um' HH:mm 'Uhr'" }
-        return "Reset \(f.string(from: r)) · in \(rel)"
+        else { f.dateFormat = "EE, dd.MM. 'um' HH:mm 'Uhr'" }
+        return "Reset " + f.string(from: r).replacingOccurrences(of: "., ", with: ", ")
+    }
+
+    /// "in 3 Std 41 Min" / "in 4 T 1 Std"
+    private var countdown: String {
+        guard let r = reset else { return "" }
+        let secs = max(0, Int(r.timeIntervalSince(now)))
+        let d = secs / 86400, h = (secs % 86400) / 3600, m = (secs % 3600) / 60
+        if d > 0 { return "in \(d) T \(h) Std" }
+        if h > 0 { return "in \(h) Std \(m) Min" }
+        return "in \(m) Min"
     }
 }

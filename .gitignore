@@ -1,4 +1,7 @@
-.build/
-build/
-.DS_Store
+*.command
 *.xcodeproj/xcuserdata/
+.DS_Store
+.build/
+build.log
+build/
+docs/panel-*

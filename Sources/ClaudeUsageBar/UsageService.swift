@@ -56,8 +56,17 @@ enum UsageError: LocalizedError {
             return "Keine Zugangsdaten. Melde dich in Claude Code an (claude → /login) oder trag in den Einstellungen deinen claude.ai sessionKey ein."
         case .tokenExpired:
             return "Claude-Code-Token abgelaufen. Starte kurz `claude` im Terminal, dann aktualisiert er sich."
+        case .http(401, _), .http(403, _):
+            return "Nicht autorisiert – in Claude Code neu einloggen bzw. sessionKey erneuern."
+        case .http(429, _):
+            return "Rate-Limit erreicht – versuche es gleich noch mal."
         case .http(let code, let body):
-            return "HTTP \(code): \(body.prefix(200))"
+            if let data = body.data(using: .utf8),
+               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let err = obj["error"] as? [String: Any], let msg = err["message"] as? String {
+                return "HTTP \(code): \(msg)"
+            }
+            return "HTTP \(code)"
         case .noOrganization:
             return "Keine Organisation auf claude.ai gefunden."
         }
