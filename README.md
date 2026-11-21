@@ -1,6 +1,6 @@
 <p align="center"><img src="Resources/AppIcon.png" width="128" alt="App-Icon"></p>
 
-# ClaudeUsageBar
+# ClaudeUsageBar für macOS
 
 Eine schlanke **macOS-Menüleisten-App**, die live anzeigt, wie viel von deinem **Claude-5-Stunden-Limit** und deinem **Wochenlimit** schon verbraucht ist – und wann beides zurückgesetzt wird.
 
