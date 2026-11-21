@@ -87,7 +87,7 @@ final class UsageModel: ObservableObject {
         }
     }
 
-    @Published var showResetInBar: Bool = UserDefaults.standard.object(forKey: "showResetInBar") as? Bool ?? true {
+    @Published var showResetInBar: Bool = UserDefaults.standard.object(forKey: "showResetInBar") as? Bool ?? false {
         didSet { UserDefaults.standard.set(showResetInBar, forKey: "showResetInBar") }
     }
 
