@@ -68,6 +68,14 @@ private struct Showcase: View {
     @ObservedObject var model: UsageModel
     let dark: Bool
 
+    /// Gleiche Zeit wie „Stand“ im Panel, im Format der macOS-Menüleisten-Uhr („Sa. 21. Nov. 12:44“)
+    private var clock: String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.setLocalizedDateFormatFromTemplate("EEE d MMM HH:mm")
+        return f.string(from: model.lastUpdate ?? Date())
+    }
+
     var body: some View {
         VStack(alignment: .trailing, spacing: 6) {
             HStack(spacing: 16) {
@@ -79,7 +87,7 @@ private struct Showcase: View {
                     .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.15)))
                 Image(systemName: "wifi")
                 Image(systemName: "battery.75")
-                Text("Sa 12:00").font(.system(size: 13, weight: .medium))
+                Text(clock).font(.system(size: 13, weight: .medium))
             }
             .padding(.horizontal, 12)
             .frame(height: 26)
