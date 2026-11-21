@@ -28,8 +28,15 @@ final class UsageModel: ObservableObject {
     @Published var isLoading = false
     @Published var now = Date()
 
-    @AppStorage("sessionKey") var sessionKey: String = ""
-    @AppStorage("refreshSeconds") var refreshSeconds: Double = 60
+    @Published var sessionKey: String = UserDefaults.standard.string(forKey: "sessionKey") ?? "" {
+        didSet { UserDefaults.standard.set(sessionKey, forKey: "sessionKey") }
+    }
+    @Published var refreshSeconds: Double = {
+        let v = UserDefaults.standard.double(forKey: "refreshSeconds")
+        return v > 0 ? v : 60
+    }() {
+        didSet { UserDefaults.standard.set(refreshSeconds, forKey: "refreshSeconds") }
+    }
 
     private var fetchTimer: Timer?
     private var clockTimer: Timer?
