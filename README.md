@@ -2,9 +2,11 @@
 
 Eine schlanke **macOS-Menüleisten-App**, die live anzeigt, wie viel von deinem **Claude-5-Stunden-Limit** und deinem **Wochenlimit** schon verbraucht ist – und wann beides zurückgesetzt wird.
 
-```
- 5h 42% · W 18%
-```
+<p align="center">
+  <img src="docs/screenshot.png" alt="ClaudeUsageBar in der macOS-Menüleiste" width="420">
+</p>
+
+In der Menüleiste steht z. B. `5h 42% · W 18%`.
 
 Ein Klick öffnet ein Panel mit:
 
