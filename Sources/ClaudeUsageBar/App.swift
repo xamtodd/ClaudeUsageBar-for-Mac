@@ -76,12 +76,34 @@ final class UsageModel: ObservableObject {
         }
     }
 
+    @Published var showResetInBar: Bool = UserDefaults.standard.object(forKey: "showResetInBar") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(showResetInBar, forKey: "showResetInBar") }
+    }
+
+    /// z. B. "5h 42% ↻14:00 │ W 18% ↻Mo 09:00"
     var menuBarTitle: String {
         guard let u = usage else { return error == nil ? "Claude …" : "Claude ⚠︎" }
-        let five = Self.pct(u.fiveHour?.utilization)
-        let week = Self.pct(u.sevenDay?.utilization)
+        func part(_ name: String, _ w: UsageWindow?) -> String {
+            var t = "\(name) \(Self.pct(w?.utilization))"
+            if showResetInBar, let r = w?.resetsAt { t += " ↻\(Self.shortReset(r))" }
+            return t
+        }
         let warn = error != nil ? " ⚠︎" : ""
-        return "5h \(five) · W \(week)\(warn)"
+        return "\(part("5h", u.fiveHour)) │ \(part("W", u.sevenDay))\(warn)"
+    }
+
+    /// Auf volle Minute gerundet (API liefert z. B. 13:59:59.8)
+    static func rounded(_ d: Date) -> Date {
+        Date(timeIntervalSince1970: (d.timeIntervalSince1970 / 60).rounded() * 60)
+    }
+
+    /// heute → "14:00", sonst "Mo 09:00"
+    static func shortReset(_ d: Date) -> String {
+        let r = rounded(d)
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.dateFormat = Calendar.current.isDateInToday(r) ? "HH:mm" : "EEE HH:mm"
+        return f.string(from: r).replacingOccurrences(of: ".", with: "")
     }
 
     static func pct(_ v: Double?) -> String {
@@ -151,6 +173,7 @@ struct UsagePanel: View {
                         .labelsHidden()
                         .onChange(of: model.refreshSeconds) { _ in model.scheduleFetchTimer() }
                     }
+                    Toggle("Reset-Uhrzeit in der Menüleiste", isOn: $model.showResetInBar)
                     Toggle("Bei Anmeldung starten", isOn: $launchAtLogin)
                         .onChange(of: launchAtLogin) { on in
                             do {
@@ -215,17 +238,21 @@ struct UsageRow: View {
     }
 
     private var resetText: String {
-        guard let r = window?.resetsAt else { return "Kein aktives Fenster" }
+        guard let raw = window?.resetsAt else { return "Kein aktives Fenster" }
+        let r = UsageModel.rounded(raw)
         let secs = max(0, Int(r.timeIntervalSince(now)))
         let d = secs / 86400, h = (secs % 86400) / 3600, m = (secs % 3600) / 60
         let rel: String
-        if d > 0 { rel = "\(d) T \(h) Std" }
+        if d > 0 { rel = "\(d) T \(h) Std \(m) Min" }
         else if h > 0 { rel = "\(h) Std \(m) Min" }
         else { rel = "\(m) Min" }
 
         let f = DateFormatter()
         f.locale = Locale(identifier: "de_DE")
-        f.dateFormat = Calendar.current.isDateInToday(r) ? "'heute' HH:mm" : "EEE dd.MM. HH:mm"
-        return "Reset in \(rel) · \(f.string(from: r))"
+        let cal = Calendar.current
+        if cal.isDateInToday(r) { f.dateFormat = "'heute um' HH:mm 'Uhr'" }
+        else if cal.isDateInTomorrow(r) { f.dateFormat = "'morgen um' HH:mm 'Uhr'" }
+        else { f.dateFormat = "EEEE, dd.MM. 'um' HH:mm 'Uhr'" }
+        return "Reset \(f.string(from: r)) · in \(rel)"
     }
 }

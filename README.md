@@ -6,14 +6,20 @@ Eine schlanke **macOS-Menüleisten-App**, die live anzeigt, wie viel von deinem 
   <img src="docs/screenshot.png" alt="ClaudeUsageBar in der macOS-Menüleiste" width="420">
 </p>
 
-In der Menüleiste steht z. B. `5h 42% · W 18%`.
+Alles Wichtige steht direkt in der Menüleiste, ohne Klick:
+
+```
+5h 42% ↻14:00 │ W 18% ↻Mo 09:00
+```
+
+= 42 % vom 5-Stunden-Limit verbraucht, Reset heute um 14:00 · 18 % vom Wochenlimit, Reset Montag 09:00.
 
 Ein Klick öffnet ein Panel mit:
 
 - 🟢🟠🔴 Fortschrittsbalken für das **5-Stunden-Fenster** und das **Wochenlimit**
-- ⏱ Countdown bis zum Reset, z. B. `Reset in 2 Std 13 Min · heute 14:00`
+- ⏱ Genauer Reset-Zeitpunkt plus Countdown, z. B. `Reset heute um 14:00 Uhr · in 1 Std 29 Min` oder `Reset Montag, 23.11. um 09:00 Uhr · in 1 T 20 Std 29 Min`
 - Eigene Wochen-Zeilen für **Opus** / **Sonnet**, sofern dein Plan sie hat
-- Manuelles Aktualisieren, Intervall-Auswahl, Autostart bei Anmeldung
+- Manuelles Aktualisieren, Intervall-Auswahl, Reset-Uhrzeit in der Menüleiste an/aus, Autostart bei Anmeldung
 
 Kein Dock-Icon, kein Fenster – nur die Menüleiste.
 
