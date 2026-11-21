@@ -1,3 +1,5 @@
+<p align="center"><img src="Resources/AppIcon.png" width="128" alt="App-Icon"></p>
+
 # ClaudeUsageBar
 
 Eine schlanke **macOS-Menüleisten-App**, die live anzeigt, wie viel von deinem **Claude-5-Stunden-Limit** und deinem **Wochenlimit** schon verbraucht ist – und wann beides zurückgesetzt wird.
@@ -92,7 +94,8 @@ Der Token verlässt deinen Mac nicht – er wird nur an die Anthropic-/claude.ai
 ClaudeUsageBar/
 ├── Package.swift                     # SwiftPM, macOS 13+
 ├── Info.plist                        # LSUIElement = true (kein Dock-Icon)
-├── build.sh                          # bauen, signieren, installieren, starten
+├── build.sh                          # bauen, Icon erzeugen, signieren, installieren, starten
+├── Resources/AppIcon.png             # App-Icon (1024 px)
 └── Sources/ClaudeUsageBar/
     ├── App.swift                     # MenuBarExtra, ViewModel, Panel-UI
     └── UsageService.swift            # Token lesen, API-Abruf, JSON-Modell
