@@ -42,8 +42,8 @@ Kein Dock-Icon, kein Fenster – nur die Menüleiste.
 ## Installation
 
 ```bash
-git clone https://github.com/xamtodd/ClaudeUsageBar.git
-cd ClaudeUsageBar
+git clone https://github.com/xamtodd/ClaudeUsageBar-for-Mac.git
+cd ClaudeUsageBar-for-Mac
 ./build.sh
 ```
 
