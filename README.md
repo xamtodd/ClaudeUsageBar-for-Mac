@@ -17,7 +17,22 @@ In der Menüleiste steht kompakt:
 5h 42% │ W 18%
 ```
 
-= 42 % vom 5-Stunden-Limit und 18 % vom Wochenlimit verbraucht. Optional (Einstellungen → *Reset-Uhrzeit in der Menüleiste*) auch mit Reset-Zeitpunkt: `5h 42% ↻14:00 │ W 18% ↻Mo 09:00`.
+= 42 % vom 5-Stunden-Limit und 18 % vom Wochenlimit verbraucht.
+
+### Erweiterte Anzeige: Reset-Uhrzeit direkt in der Menüleiste
+
+Wer auf einen Blick sehen will, **wann** das 5-Stunden-Fenster bzw. das Wochenlimit zurückgesetzt wird, schaltet unter **Einstellungen → *Reset-Uhrzeit in der Menüleiste*** die erweiterte Anzeige ein:
+
+```
+5h 42% ↻14:00 │ W 18% ↻Mo 09:00
+```
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/menubar-light.png">
+    <img src="docs/menubar.png" alt="Menüleiste: Standard vs. mit Reset-Uhrzeit" width="560">
+  </picture>
+</p>
 
 Ein Klick öffnet ein Panel mit:
 
@@ -99,7 +114,7 @@ Der Token verlässt deinen Mac nicht – er wird nur an die Anthropic-/claude.ai
 swift build -c release && .build/release/ClaudeUsageBar --screenshot docs
 ```
 
-Rendert `docs/screenshot.png` (dunkel) und `docs/screenshot-light.png` (hell) mit deinen aktuellen Werten.
+Rendert `docs/screenshot.png` / `docs/screenshot-light.png` (Panel, dunkel/hell) und `docs/menubar.png` / `docs/menubar-light.png` (Menüleiste Standard vs. mit Reset-Uhrzeit) mit deinen aktuellen Werten. Vorher die laufende App beenden (`pkill -x ClaudeUsageBar`), sonst gibt’s schnell ein Rate-Limit.
 
 ## Projektstruktur
 
@@ -108,6 +123,7 @@ ClaudeUsageBar/
 ├── Package.swift                     # SwiftPM, macOS 13+
 ├── Info.plist                        # LSUIElement = true (kein Dock-Icon)
 ├── build.sh                          # bauen, Icon erzeugen, signieren, installieren, starten
+├── docs/                             # README-Screenshots
 ├── Resources/AppIcon.png             # App-Icon (1024 px)
 └── Sources/ClaudeUsageBar/
     ├── App.swift                     # MenuBarExtra, ViewModel, Panel-UI
@@ -118,3 +134,9 @@ ClaudeUsageBar/
 ## Hinweis
 
 Inoffizielles Hobbyprojekt, nicht von Anthropic. Die genutzten Usage-Endpunkte sind nicht öffentlich dokumentiert und können sich jederzeit ändern.
+
+Im Code stecken **keine** Keys oder Tokens: Jede:r nutzt automatisch die eigenen Claude-Code-Zugangsdaten aus dem eigenen Schlüsselbund.
+
+## Lizenz
+
+[MIT](LICENSE)

@@ -5,6 +5,7 @@ import AppKit
 /// Lädt einmal echte Daten und schreibt README-Bilder:
 ///   screenshot.png        – Menüleiste + aufgeklapptes Panel (dunkel)
 ///   screenshot-light.png  – dasselbe hell
+///   menubar.png / menubar-light.png – Menüleiste kompakt vs. mit Reset-Uhrzeit
 enum ScreenshotMode {
     static var outputDir: String? {
         let args = CommandLine.arguments
@@ -26,7 +27,19 @@ enum ScreenshotMode {
                     print("❌ \(path)")
                 }
             }
-            print("Menüleiste: \(model.menuBarTitle)")
+            // Menüleisten-Vergleich: kompakt vs. erweitert (Einstellung danach zurücksetzen)
+            let previous = model.showResetInBar
+            model.showResetInBar = false
+            let compact = model.menuBarTitle
+            model.showResetInBar = true
+            let extended = model.menuBarTitle
+            model.showResetInBar = previous
+            for (name, dark) in [("menubar.png", true), ("menubar-light.png", false)] {
+                let view = MenuBarVariants(compact: compact, extended: extended, dark: dark)
+                let path = (dir as NSString).appendingPathComponent(name)
+                print(await render(view, dark: dark, to: path) ? "✅ \(path)" : "❌ \(path)")
+            }
+            print("Menüleiste: \(compact)  |  erweitert: \(extended)")
             if let e = model.error { print("Fehler: \(e)") }
             NSApp.terminate(nil)
         }
@@ -104,6 +117,48 @@ private struct Showcase: View {
                 .padding(.trailing, 150)
                 .padding(.bottom, 24)
         }
+        .frame(width: 560)
+        .background(
+            LinearGradient(colors: dark ? [Color(red: 0.16, green: 0.12, blue: 0.22), Color(red: 0.08, green: 0.10, blue: 0.16)]
+                                        : [Color(red: 0.85, green: 0.89, blue: 0.97), Color(red: 0.96, green: 0.90, blue: 0.86)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+        )
+    }
+}
+
+/// Zwei Menüleisten-Zeilen untereinander: Standard und mit Reset-Uhrzeit
+private struct MenuBarVariants: View {
+    let compact: String
+    let extended: String
+    let dark: Bool
+
+    private func row(_ label: String, _ title: String) -> some View {
+        HStack(spacing: 12) {
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 150, alignment: .leading)
+            Spacer(minLength: 0)
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .monospacedDigit()
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.15)))
+            Image(systemName: "wifi")
+            Image(systemName: "battery.75")
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 30)
+        .background(dark ? Color.black.opacity(0.85) : Color.white.opacity(0.85))
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            row("Standard", compact)
+            row("Mit Reset-Uhrzeit", extended)
+        }
+        .padding(12)
         .frame(width: 560)
         .background(
             LinearGradient(colors: dark ? [Color(red: 0.16, green: 0.12, blue: 0.22), Color(red: 0.08, green: 0.10, blue: 0.16)]
