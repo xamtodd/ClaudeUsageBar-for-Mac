@@ -1,22 +1,95 @@
 # ClaudeUsageBar
 
-Menüleisten-App für macOS (13+), die live zeigt, wie viel vom **5-Stunden-Limit** und vom **Wochenlimit** deines Claude-Abos verbraucht ist – und wann es zurückgesetzt wird.
+Eine schlanke **macOS-Menüleisten-App**, die live anzeigt, wie viel von deinem **Claude-5-Stunden-Limit** und deinem **Wochenlimit** schon verbraucht ist – und wann beides zurückgesetzt wird.
 
-Menüleiste: `5h 42% · W 18%` – Klick öffnet Details mit Balken, Countdown und Reset-Zeitpunkt.
+```
+ 5h 42% · W 18%
+```
 
-## Installieren
+Ein Klick öffnet ein Panel mit:
+
+- 🟢🟠🔴 Fortschrittsbalken für das **5-Stunden-Fenster** und das **Wochenlimit**
+- ⏱ Countdown bis zum Reset, z. B. `Reset in 2 Std 13 Min · heute 14:00`
+- Eigene Wochen-Zeilen für **Opus** / **Sonnet**, sofern dein Plan sie hat
+- Manuelles Aktualisieren, Intervall-Auswahl, Autostart bei Anmeldung
+
+Kein Dock-Icon, kein Fenster – nur die Menüleiste.
+
+---
+
+## Voraussetzungen
+
+| | |
+|---|---|
+| **macOS** | 13 Ventura oder neuer (Apple Silicon & Intel) |
+| **Toolchain** | Xcode *oder* nur die Command Line Tools (`xcode-select --install`) |
+| **Account** | Claude Pro / Max – am einfachsten mit eingeloggtem [Claude Code](https://docs.claude.com/en/docs/claude-code) |
+
+## Installation
 
 ```bash
+git clone https://github.com/xamtodd/ClaudeUsageBar.git
+cd ClaudeUsageBar
 ./build.sh
 ```
 
-Baut die App, legt sie nach `~/Applications` und startet sie. Autostart: im Panel unter *Einstellungen → Bei Anmeldung starten*.
+`build.sh` kompiliert per Swift Package Manager im Release-Modus, baut daraus `ClaudeUsageBar.app`, signiert sie ad-hoc, kopiert sie nach `~/Applications` und startet sie.
 
-## Datenquelle
+Beim ersten Start fragt macOS, ob die App auf den Schlüsselbund-Eintrag **„Claude Code-credentials“** zugreifen darf → **Immer erlauben**.
 
-1. **Claude Code (empfohlen):** Liest den OAuth-Token, den Claude Code in der Keychain (`Claude Code-credentials`) bzw. in `~/.claude/.credentials.json` ablegt, und fragt `api.anthropic.com/api/oauth/usage` ab. Einfach einmal `claude` → `/login` gemacht haben.
-2. **Fallback claude.ai:** In den Einstellungen den `sessionKey`-Cookie von claude.ai eintragen (Browser → DevTools → Application → Cookies → `sessionKey`).
+### Autostart
 
-Beim ersten Keychain-Zugriff fragt macOS evtl. nach Erlaubnis → *Immer erlauben*.
+Panel öffnen → **Einstellungen** → **Bei Anmeldung starten**.
+(Nutzt `SMAppService`; erscheint danach unter *Systemeinstellungen → Allgemein → Anmeldeobjekte*.)
 
-Hinweis: Beides sind inoffizielle Endpunkte, die sich ändern können. Die App refresht den Token **nicht** selbst (würde Claude Code ausloggen) – ist er abgelaufen, einmal `claude` starten.
+### Update
+
+```bash
+git pull && ./build.sh
+```
+
+### Deinstallieren
+
+```bash
+pkill -x ClaudeUsageBar; rm -rf ~/Applications/ClaudeUsageBar.app
+defaults delete de.maxgerbeth.ClaudeUsageBar
+```
+
+## Woher kommen die Daten?
+
+Die App probiert zwei Quellen, in dieser Reihenfolge:
+
+1. **Claude Code (empfohlen, null Konfiguration)**
+   Liest den OAuth-Token, den Claude Code im macOS-Schlüsselbund (`Claude Code-credentials`) bzw. in `~/.claude/.credentials.json` ablegt, und fragt damit `https://api.anthropic.com/api/oauth/usage` ab.
+   → Einmal `claude` starten und `/login` ausführen genügt.
+
+2. **claude.ai sessionKey (Fallback)**
+   Ohne Claude Code: im Browser auf claude.ai einloggen → DevTools → *Application/Storage* → *Cookies* → Wert von `sessionKey` kopieren → im Panel unter **Einstellungen** einfügen und Enter drücken.
+
+Der Token verlässt deinen Mac nicht – er wird nur an die Anthropic-/claude.ai-Endpunkte geschickt.
+
+## Troubleshooting
+
+| Anzeige | Lösung |
+|---|---|
+| `Claude ⚠︎` + „Keine Zugangsdaten“ | In Claude Code einloggen (`claude` → `/login`) oder sessionKey eintragen |
+| „Token abgelaufen“ | Einmal `claude` im Terminal starten – Claude Code erneuert den Token. Die App refresht bewusst **nicht** selbst, sonst würde Claude Code ausgeloggt. |
+| `HTTP 401` / `403` | Neu einloggen bzw. frischen sessionKey eintragen |
+| „App kann nicht geöffnet werden“ | Rechtsklick auf die App → *Öffnen*, oder `xattr -dr com.apple.quarantine ~/Applications/ClaudeUsageBar.app` |
+| Build-Fehler `swift: command not found` | `xcode-select --install` |
+
+## Projektstruktur
+
+```
+ClaudeUsageBar/
+├── Package.swift                     # SwiftPM, macOS 13+
+├── Info.plist                        # LSUIElement = true (kein Dock-Icon)
+├── build.sh                          # bauen, signieren, installieren, starten
+└── Sources/ClaudeUsageBar/
+    ├── App.swift                     # MenuBarExtra, ViewModel, Panel-UI
+    └── UsageService.swift            # Token lesen, API-Abruf, JSON-Modell
+```
+
+## Hinweis
+
+Inoffizielles Hobbyprojekt, nicht von Anthropic. Die genutzten Usage-Endpunkte sind nicht öffentlich dokumentiert und können sich jederzeit ändern.
