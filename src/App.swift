@@ -4,11 +4,10 @@ import ServiceManagement
 
 @main
 struct ClaudeUsageBarApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @StateObject private var model = UsageModel(autoStart: ScreenshotMode.outputDir == nil)
+    @StateObject private var model = UsageModel()
 
     var body: some Scene {
-        MenuBarExtra(isInserted: .constant(ScreenshotMode.outputDir == nil)) {
+        MenuBarExtra {
             UsagePanel(model: model)
         } label: {
             // Menüleiste: "5h 42% · W 18%"
@@ -29,12 +28,16 @@ final class UsageModel: ObservableObject {
     @Published var isLoading = false
     @Published var now = Date()
 
-    @Published var sessionKey: String = UserDefaults.standard.string(forKey: "sessionKey") ?? "" {
-        didSet { UserDefaults.standard.set(sessionKey, forKey: "sessionKey") }
+    @Published var tokenStats: TokenStats?
+
+    /// Liegt im Schlüsselbund, nicht im Klartext in UserDefaults
+    @Published var sessionKey: String = SessionKeyStore.load() {
+        didSet { SessionKeyStore.save(sessionKey) }
     }
+    /// Mindestens 60 s – kürzere Intervalle laufen schnell ins Rate-Limit
     @Published var refreshSeconds: Double = {
         let v = UserDefaults.standard.double(forKey: "refreshSeconds")
-        return v > 0 ? v : 120
+        return v > 0 ? max(60, v) : 120
     }() {
         didSet { UserDefaults.standard.set(refreshSeconds, forKey: "refreshSeconds") }
     }
@@ -45,8 +48,7 @@ final class UsageModel: ObservableObject {
     /// Wird bei Rate-Limit (429) verdoppelt, bei Erfolg zurückgesetzt
     private var backoffFactor: Double = 1
 
-    init(autoStart: Bool = true) {
-        guard autoStart else { return }
+    init() {
         Task { await refresh() }
         scheduleFetchTimer()
         // Countdown jede 30 s aktualisieren
@@ -63,12 +65,14 @@ final class UsageModel: ObservableObject {
 
     func scheduleFetchTimer() {
         fetchTimer?.invalidate()
-        fetchTimer = Timer.scheduledTimer(withTimeInterval: max(30, refreshSeconds) * backoffFactor, repeats: true) { [weak self] _ in
+        fetchTimer = Timer.scheduledTimer(withTimeInterval: max(60, refreshSeconds) * backoffFactor, repeats: true) { [weak self] _ in
             Task { await self?.refresh() }
         }
     }
 
     func refresh() async {
+        // Timer, Klick und Aufwachen können gleichzeitig auslösen → nur ein Abruf auf einmal
+        guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
         do {
@@ -80,11 +84,21 @@ final class UsageModel: ObservableObject {
         } catch UsageError.http(429, _) {
             backoffFactor = min(backoffFactor * 2, 10)
             scheduleFetchTimer()
-            let next = Int(max(30, refreshSeconds) * backoffFactor)
+            let next = Int(max(60, refreshSeconds) * backoffFactor)
             self.error = "Rate-Limit erreicht – nächster Versuch in \(next >= 60 ? "\(next / 60) min" : "\(next) s")."
         } catch {
             self.error = error.localizedDescription
         }
+        // Lokale Zahlen auch dann, wenn die API gerade nicht antwortet
+        await refreshTokenStats()
+    }
+
+    /// Lokale Token-Zahlen aus den Claude-Code-Logs, passend zu den API-Fenstern
+    func refreshTokenStats() async {
+        let now = Date()
+        let fiveStart = usage?.fiveHour?.resetsAt.map { $0.addingTimeInterval(-5 * 3600) } ?? now.addingTimeInterval(-5 * 3600)
+        let weekStart = usage?.sevenDay?.resetsAt.map { $0.addingTimeInterval(-7 * 86400) } ?? now.addingTimeInterval(-7 * 86400)
+        tokenStats = await TokenScanner.shared.stats(fiveHourStart: fiveStart, weekStart: weekStart)
     }
 
     @Published var showResetInBar: Bool = UserDefaults.standard.object(forKey: "showResetInBar") as? Bool ?? false {
@@ -111,9 +125,7 @@ final class UsageModel: ObservableObject {
     /// heute → "14:00", sonst "Mo 09:00"
     static func shortReset(_ d: Date) -> String {
         let r = rounded(d)
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "de_DE")
-        f.dateFormat = Calendar.current.isDateInToday(r) ? "HH:mm" : "EEE HH:mm"
+        let f = Calendar.current.isDateInToday(r) ? Formatters.time : Formatters.weekdayTime
         return f.string(from: r).replacingOccurrences(of: ".", with: "")
     }
 
@@ -154,6 +166,8 @@ struct UsagePanel: View {
                 }
             }
 
+            TokenSection(stats: model.tokenStats)
+
             if let err = model.error {
                 Text(err)
                     .font(.caption)
@@ -176,7 +190,6 @@ struct UsagePanel: View {
                     HStack {
                         Text("Intervall")
                         Picker("", selection: $model.refreshSeconds) {
-                            Text("30 s").tag(30.0)
                             Text("1 min").tag(60.0)
                             Text("2 min").tag(120.0)
                             Text("5 min").tag(300.0)
@@ -213,6 +226,158 @@ struct UsagePanel: View {
         }
         .padding(14)
         .frame(width: 300)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(WindowHeightFitter())
+    }
+}
+
+// MARK: - Token-Anzeige
+
+struct TokenSection: View {
+    let stats: TokenStats?   // nil = erster Scan läuft noch
+    @AppStorage("tokensExpanded") private var expanded = false
+    @AppStorage("tokensWeek") private var week = false
+
+    private var s: TokenSummary {
+        guard let stats else { return TokenSummary() }
+        return week ? stats.week : stats.fiveHour
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button { expanded.toggle() } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                    Text("Tokens (Claude Code)").font(.subheadline.weight(.medium))
+                    Spacer()
+                    if stats == nil {
+                        ProgressView().controlSize(.mini)
+                    } else {
+                        // Input + Output: Cache-Lesen ist sehr günstig und würde die Zahl aufblähen
+                        Text(Self.fmt(s.totals.io))
+                            .font(.subheadline.monospacedDigit().weight(.semibold))
+                            .help("Input + Output (\(week ? "Woche" : "5-Stunden-Fenster")), ohne Cache")
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if expanded, stats == nil {
+                Text("Claude-Code-Logs werden gelesen …")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else if expanded {
+                Picker("", selection: $week) {
+                    Text("5-Stunden-Fenster").tag(false)
+                    Text("Woche").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                if s.requests == 0 {
+                    Text("Keine Claude-Code-Anfragen in diesem Zeitraum.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 3) {
+                        row("Input", s.totals.input)
+                        row("Output", s.totals.output)
+                        row("Cache lesen", s.totals.cacheRead)
+                        row("Cache schreiben", s.totals.cacheWrite)
+                        row("Anfragen", s.requests, plain: true)
+                        GridRow {
+                            Text("Gesamt inkl. Cache").foregroundStyle(.secondary)
+                            Spacer()
+                            Text(Self.fmt(s.totals.total)).monospacedDigit().foregroundStyle(.secondary)
+                        }
+                    }
+                    .font(.caption)
+
+                    section("Nach Modell", s.byModel)
+                    section("Top-Projekte", Array(s.byProject.prefix(3)))
+                }
+            }
+        }
+    }
+
+    private func row(_ label: String, _ value: Int, plain: Bool = false) -> some View {
+        GridRow {
+            Text(label).foregroundStyle(.secondary)
+            Spacer()
+            Text(plain ? "\(value)" : Self.fmt(value)).monospacedDigit()
+        }
+    }
+
+    private func section(_ title: String, _ items: [(name: String, counts: TokenCounts)]) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(.caption.weight(.medium))
+            ForEach(items, id: \.name) { item in
+                HStack {
+                    Text(item.name).lineLimit(1).truncationMode(.middle)
+                    Spacer()
+                    Text(Self.fmt(item.counts.io)).monospacedDigit()
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// 1234 → "1.234", 345_678 → "346 Tsd", 12_345_678 → "12,3 Mio"
+    static func fmt(_ n: Int) -> String {
+        switch n {
+        case 1_000_000...: return String(format: "%.1f Mio", Double(n) / 1_000_000).replacingOccurrences(of: ".", with: ",")
+        case 100_000...: return "\(Int((Double(n) / 1000).rounded())) Tsd"
+        default: return n.formatted(.number.locale(Locale(identifier: "de_DE")))
+        }
+    }
+}
+
+// MARK: - Formatter (einmal erzeugt statt bei jedem Neuzeichnen)
+
+enum Formatters {
+    private static func make(_ format: String) -> DateFormatter {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.dateFormat = format
+        return f
+    }
+    static let time = make("HH:mm")
+    static let weekdayTime = make("EEE HH:mm")
+    static let today = make("'heute um' HH:mm 'Uhr'")
+    static let tomorrow = make("'morgen um' HH:mm 'Uhr'")
+    static let later = make("EE, dd.MM. 'um' HH:mm 'Uhr'")
+}
+
+// MARK: - Fensterhöhe
+
+/// MenuBarExtra(.window) passt die Fensterhöhe nicht zuverlässig an, wenn der Inhalt
+/// kleiner wird (z. B. verschwundene Fehlermeldung) – dann bleibt unten ein leerer Rand.
+/// Dieser Helfer setzt die Fensterhöhe bei jeder Größenänderung auf die Inhaltshöhe,
+/// die Oberkante (unter der Menüleiste) bleibt dabei fest.
+private struct WindowHeightFitter: View {
+    var body: some View {
+        GeometryReader { geo in
+            Fitter(height: geo.size.height)
+        }
+    }
+
+    private struct Fitter: NSViewRepresentable {
+        let height: CGFloat
+        func makeNSView(context: Context) -> NSView { NSView() }
+        func updateNSView(_ view: NSView, context: Context) {
+            let height = height
+            DispatchQueue.main.async {
+                guard let window = view.window, height > 0 else { return }
+                let target = window.frameRect(forContentRect: NSRect(x: 0, y: 0, width: 1, height: height)).height
+                var frame = window.frame
+                guard abs(frame.height - target) > 0.5 else { return }
+                frame.origin.y += frame.height - target
+                frame.size.height = target
+                window.setFrame(frame, display: true)
+            }
+        }
     }
 }
 
@@ -263,12 +428,9 @@ struct UsageRow: View {
     /// "Reset heute um 16:20 Uhr" / "Reset Mi, 25.11. um 14:00 Uhr"
     private var resetDate: String {
         guard let r = reset else { return "Kein aktives Fenster" }
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "de_DE")
         let cal = Calendar.current
-        if cal.isDateInToday(r) { f.dateFormat = "'heute um' HH:mm 'Uhr'" }
-        else if cal.isDateInTomorrow(r) { f.dateFormat = "'morgen um' HH:mm 'Uhr'" }
-        else { f.dateFormat = "EE, dd.MM. 'um' HH:mm 'Uhr'" }
+        let f = cal.isDateInToday(r) ? Formatters.today
+            : cal.isDateInTomorrow(r) ? Formatters.tomorrow : Formatters.later
         return "Reset " + f.string(from: r).replacingOccurrences(of: "., ", with: ", ")
     }
 

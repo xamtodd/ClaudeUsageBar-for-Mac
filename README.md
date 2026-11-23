@@ -1,48 +1,49 @@
-<p align="center"><img src="Resources/AppIcon.png" width="128" alt="App-Icon"></p>
+<p align="center"><img src="Resources/AppIcon.png" width="128" alt="App icon"></p>
 
-# ClaudeUsageBar für macOS
+# ClaudeUsageBar for macOS
 
-Eine schlanke **macOS-Menüleisten-App**, die live anzeigt, wie viel von deinem **Claude-5-Stunden-Limit** und deinem **Wochenlimit** schon verbraucht ist – und wann beides zurückgesetzt wird.
+A lightweight **macOS menu bar app** that shows, live, how much of your **Claude 5-hour limit** and your **weekly limit** you have used, and when each one resets.
 
-![ClaudeUsageBar in der macOS-Menüleiste](docs/screenshot.png)
+![ClaudeUsageBar in the macOS menu bar](docs/screenshot.png)
 
-In der Menüleiste steht kompakt:
+The menu bar shows a compact summary:
 
 ```
 5h 42% │ W 18%
 ```
 
-= 42 % vom 5-Stunden-Limit und 18 % vom Wochenlimit verbraucht.
+That means 42 % of the 5-hour limit and 18 % of the weekly limit are used.
 
-### Erweiterte Anzeige: Reset-Uhrzeit direkt in der Menüleiste
+### Extended view: reset time in the menu bar
 
-Wer auf einen Blick sehen will, **wann** das 5-Stunden-Fenster bzw. das Wochenlimit zurückgesetzt wird, schaltet unter **Einstellungen → *Reset-Uhrzeit in der Menüleiste*** die erweiterte Anzeige ein:
+If you want to see at a glance **when** the 5-hour window and the weekly limit reset, turn on the extended view under **Settings → *Reset-Uhrzeit in der Menüleiste*** (reset time in the menu bar):
 
 ```
 5h 42% ↻14:00 │ W 18% ↻Mo 09:00
 ```
 
-![Menüleiste: Standard vs. mit Reset-Uhrzeit](docs/menubar.png)
+![Menu bar: default vs. with reset time](docs/menubar.png)
 
-Ein Klick öffnet ein Panel mit:
+Clicking it opens a panel with:
 
-- 🟢🟠🔴 Fortschrittsbalken für das **5-Stunden-Fenster** und das **Wochenlimit**
-- ⏱ Genauer Reset-Zeitpunkt plus Countdown, z. B. `Reset heute um 14:00 Uhr · in 1 Std 29 Min` oder `Reset Montag, 23.11. um 09:00 Uhr · in 1 T 20 Std 29 Min`
-- Eigene Wochen-Zeilen für **Opus** / **Sonnet**, sofern dein Plan sie hat
-- Automatisches Backoff bei Rate-Limit (HTTP 429)
-- Manuelles Aktualisieren, Intervall-Auswahl (Standard 2 min), Reset-Uhrzeit in der Menüleiste an/aus (Standard: aus), Autostart bei Anmeldung
+- 🟢🟠🔴 Progress bars for the **5-hour window** and the **weekly limit**
+- ⏱ The exact reset time plus a countdown, e.g. `Reset heute um 14:00 Uhr · in 1 Std 29 Min` (today at 14:00, in 1 h 29 min)
+- Separate weekly rows for **Opus** / **Sonnet** if your plan has them
+- **Token breakdown (Claude Code)**: a collapsible section with the tokens used in the current 5-hour window or this week, headline number is input + output (cache reads are cheap and would inflate it), with a breakdown into input, output, cache read and cache write, plus per-model totals and your top projects. Read locally from Claude Code's logs in `~/.claude/projects`; claude.ai chats are not included.
+- Automatic backoff on rate limits (HTTP 429)
+- Manual refresh, refresh interval (1–5 min, default 2 min), reset time in the menu bar on/off (default: off), launch at login
 
-Kein Dock-Icon, kein Fenster – nur die Menüleiste.
+No Dock icon, no window, just the menu bar. The app's interface is in German.
 
 ---
 
-## Voraussetzungen
+## Requirements
 
 | | |
 |---|---|
-| **macOS** | 13 Ventura oder neuer (Apple Silicon & Intel) |
-| **Toolchain** | Xcode *oder* nur die Command Line Tools (`xcode-select --install`) |
-| **Account** | Claude Pro / Max – am einfachsten mit eingeloggtem [Claude Code](https://docs.claude.com/en/docs/claude-code) |
+| **macOS** | 13 Ventura or later (Apple Silicon & Intel) |
+| **Toolchain** | Xcode *or* just the Command Line Tools (`xcode-select --install`) |
+| **Account** | Claude Pro / Max, easiest with [Claude Code](https://docs.claude.com/en/docs/claude-code) logged in |
 
 ## Installation
 
@@ -52,14 +53,14 @@ cd ClaudeUsageBar-for-Mac
 ./build.sh
 ```
 
-`build.sh` kompiliert per Swift Package Manager im Release-Modus, baut daraus `ClaudeUsageBar.app`, signiert sie ad-hoc, kopiert sie nach `~/Applications` und startet sie.
+`build.sh` compiles a release build with Swift Package Manager, packages it as `ClaudeUsageBar.app`, signs it ad hoc, copies it to `~/Applications` and launches it.
 
-Beim ersten Start fragt macOS, ob die App auf den Schlüsselbund-Eintrag **„Claude Code-credentials“** zugreifen darf → **Immer erlauben**.
+On first launch, macOS asks whether the app may access the keychain item **"Claude Code-credentials"**. Choose **Always Allow**.
 
-### Autostart
+### Launch at login
 
-Panel öffnen → **Einstellungen** → **Bei Anmeldung starten**.
-(Nutzt `SMAppService`; erscheint danach unter *Systemeinstellungen → Allgemein → Anmeldeobjekte*.)
+Open the panel → **Einstellungen** (Settings) → **Bei Anmeldung starten** (launch at login).
+(Uses `SMAppService`; the app then appears under *System Settings → General → Login Items*.)
 
 ### Update
 
@@ -67,66 +68,58 @@ Panel öffnen → **Einstellungen** → **Bei Anmeldung starten**.
 git pull && ./build.sh
 ```
 
-### Deinstallieren
+### Uninstall
 
 ```bash
 pkill -x ClaudeUsageBar; rm -rf ~/Applications/ClaudeUsageBar.app
 defaults delete de.maxgerbeth.ClaudeUsageBar
 ```
 
-## Woher kommen die Daten?
+## Where does the data come from?
 
-Die App probiert zwei Quellen, in dieser Reihenfolge:
+The app tries two sources, in this order:
 
-1. **Claude Code (empfohlen, null Konfiguration)**
-   Liest den OAuth-Token, den Claude Code im macOS-Schlüsselbund (`Claude Code-credentials`) bzw. in `~/.claude/.credentials.json` ablegt, und fragt damit `https://api.anthropic.com/api/oauth/usage` ab.
-   → Einmal `claude` starten und `/login` ausführen genügt.
+1. **Claude Code (recommended, zero configuration)**
+   Reads the OAuth token that Claude Code stores in the macOS keychain (`Claude Code-credentials`) or in `~/.claude/.credentials.json`, and uses it to query `https://api.anthropic.com/api/oauth/usage`.
+   → Running `claude` once and doing `/login` is all it takes.
 
-2. **claude.ai sessionKey (Fallback)**
-   Ohne Claude Code: im Browser auf claude.ai einloggen → DevTools → *Application/Storage* → *Cookies* → Wert von `sessionKey` kopieren → im Panel unter **Einstellungen** einfügen und Enter drücken.
+2. **claude.ai sessionKey (fallback)**
+   Without Claude Code: log in to claude.ai in your browser → DevTools → *Application/Storage* → *Cookies* → copy the value of `sessionKey` → paste it in the panel under **Einstellungen** (Settings) and press Enter.
 
-Der Token verlässt deinen Mac nicht – er wird nur an die Anthropic-/claude.ai-Endpunkte geschickt.
+Your token never leaves your Mac except to be sent to the Anthropic / claude.ai endpoints. A sessionKey you enter is stored in your macOS keychain, not in plain text. Requests use an ephemeral session, so no claude.ai cookies or responses are cached on disk.
 
 ## Troubleshooting
 
-| Anzeige | Lösung |
+| What you see | Fix |
 |---|---|
-| `Claude ⚠︎` + „Keine Zugangsdaten“ | In Claude Code einloggen (`claude` → `/login`) oder sessionKey eintragen |
-| „Token abgelaufen“ | Einmal `claude` im Terminal starten – Claude Code erneuert den Token. Die App refresht bewusst **nicht** selbst, sonst würde Claude Code ausgeloggt. |
-| „Nicht autorisiert“ | Neu einloggen bzw. frischen sessionKey eintragen |
-| „Rate-Limit erreicht“ | Die App wartet automatisch länger. Intervall ggf. auf 2–5 min stellen. |
-| „App kann nicht geöffnet werden“ | Rechtsklick auf die App → *Öffnen*, oder `xattr -dr com.apple.quarantine ~/Applications/ClaudeUsageBar.app` |
-| Build-Fehler `swift: command not found` | `xcode-select --install` |
+| `Claude ⚠︎` + "Keine Zugangsdaten" (no credentials) | Log in to Claude Code (`claude` → `/login`) or enter a sessionKey |
+| "Token abgelaufen" (token expired) | Run `claude` once in the terminal; Claude Code renews the token. The app deliberately does **not** refresh it itself, because that would log Claude Code out. |
+| "Nicht autorisiert" (unauthorized) | Log in again or enter a fresh sessionKey |
+| "Rate-Limit erreicht" (rate limit reached) | The app automatically waits longer. Consider setting the interval to 2–5 min. |
+| "App can't be opened" | Right-click the app → *Open*, or `xattr -dr com.apple.quarantine ~/Applications/ClaudeUsageBar.app` |
+| Build error `swift: command not found` | `xcode-select --install` |
 
-## README-Screenshots neu erzeugen
-
-```bash
-swift build -c release && .build/release/ClaudeUsageBar --screenshot docs
-```
-
-Rendert `docs/screenshot.png` / `docs/screenshot-light.png` (Panel, dunkel/hell) und `docs/menubar.png` / `docs/menubar-light.png` (Menüleiste Standard vs. mit Reset-Uhrzeit) mit deinen aktuellen Werten. Vorher die laufende App beenden (`pkill -x ClaudeUsageBar`), sonst gibt’s schnell ein Rate-Limit.
-
-## Projektstruktur
+## Project structure
 
 ```
 ClaudeUsageBar/
-├── Package.swift                     # SwiftPM, macOS 13+
-├── Info.plist                        # LSUIElement = true (kein Dock-Icon)
-├── build.sh                          # bauen, Icon erzeugen, signieren, installieren, starten
-├── docs/                             # README-Screenshots
-├── Resources/AppIcon.png             # App-Icon (1024 px)
-└── Sources/ClaudeUsageBar/
-    ├── App.swift                     # MenuBarExtra, ViewModel, Panel-UI
-    ├── UsageService.swift            # Token lesen, API-Abruf, JSON-Modell
-    └── Screenshot.swift              # --screenshot <ordner>: README-Bilder mit echten Daten rendern
+├── Package.swift          # SwiftPM, macOS 13+
+├── Info.plist             # LSUIElement = true (no Dock icon)
+├── build.sh               # build, create icon, sign, install, launch
+├── docs/                  # README screenshots
+├── Resources/AppIcon.png  # app icon (1024 px)
+└── src/
+    ├── App.swift          # MenuBarExtra, view model, panel UI
+    ├── UsageService.swift # token lookup, API request, JSON model, keychain storage
+    └── TokenStats.swift   # incremental scan of Claude Code logs for token counts
 ```
 
-## Hinweis
+## Disclaimer
 
-Inoffizielles Hobbyprojekt, nicht von Anthropic. Die genutzten Usage-Endpunkte sind nicht öffentlich dokumentiert und können sich jederzeit ändern.
+Unofficial hobby project, not affiliated with Anthropic. The usage endpoints it relies on are not publicly documented and may change at any time.
 
-Im Code stecken **keine** Keys oder Tokens: Jede:r nutzt automatisch die eigenen Claude-Code-Zugangsdaten aus dem eigenen Schlüsselbund.
+The code contains **no** keys or tokens: everyone automatically uses their own Claude Code credentials from their own keychain.
 
-## Lizenz
+## License
 
 [MIT](LICENSE)
