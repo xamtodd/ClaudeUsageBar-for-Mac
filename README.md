@@ -31,7 +31,7 @@ Clicking it opens a panel with:
 - Separate weekly rows for **Opus** / **Sonnet** if your plan has them
 - **Token breakdown (Claude Code)**: a collapsible section with the tokens used in the current 5-hour window or this week, headline number is input + output (cache reads are cheap and would inflate it), with a breakdown into input, output, cache read and cache write, plus per-model totals and your top projects. Read locally from Claude Code's logs in `~/.claude/projects`; claude.ai chats are not included.
 - Automatic backoff on rate limits (HTTP 429)
-- Manual refresh, refresh interval (1–5 min, default 2 min), reset time in the menu bar on/off (default: off), launch at login
+- Manual refresh, refresh interval (30 s–5 min, default 2 min), reset time in the menu bar on/off (default: off), launch at login
 
 No Dock icon, no window, just the menu bar. The app's interface is in German.
 

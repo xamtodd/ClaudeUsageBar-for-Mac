@@ -34,10 +34,10 @@ final class UsageModel: ObservableObject {
     @Published var sessionKey: String = SessionKeyStore.load() {
         didSet { SessionKeyStore.save(sessionKey) }
     }
-    /// Mindestens 60 s – kürzere Intervalle laufen schnell ins Rate-Limit
+    /// Mindestens 30 s – bei Rate-Limit (429) verlängert das Backoff automatisch
     @Published var refreshSeconds: Double = {
         let v = UserDefaults.standard.double(forKey: "refreshSeconds")
-        return v > 0 ? max(60, v) : 120
+        return v > 0 ? max(30, v) : 120
     }() {
         didSet { UserDefaults.standard.set(refreshSeconds, forKey: "refreshSeconds") }
     }
@@ -65,7 +65,7 @@ final class UsageModel: ObservableObject {
 
     func scheduleFetchTimer() {
         fetchTimer?.invalidate()
-        fetchTimer = Timer.scheduledTimer(withTimeInterval: max(60, refreshSeconds) * backoffFactor, repeats: true) { [weak self] _ in
+        fetchTimer = Timer.scheduledTimer(withTimeInterval: max(30, refreshSeconds) * backoffFactor, repeats: true) { [weak self] _ in
             Task { await self?.refresh() }
         }
     }
@@ -84,7 +84,7 @@ final class UsageModel: ObservableObject {
         } catch UsageError.http(429, _) {
             backoffFactor = min(backoffFactor * 2, 10)
             scheduleFetchTimer()
-            let next = Int(max(60, refreshSeconds) * backoffFactor)
+            let next = Int(max(30, refreshSeconds) * backoffFactor)
             self.error = "Rate-Limit erreicht – nächster Versuch in \(next >= 60 ? "\(next / 60) min" : "\(next) s")."
         } catch {
             self.error = error.localizedDescription
@@ -190,6 +190,7 @@ struct UsagePanel: View {
                     HStack {
                         Text("Intervall")
                         Picker("", selection: $model.refreshSeconds) {
+                            Text("30 s").tag(30.0)
                             Text("1 min").tag(60.0)
                             Text("2 min").tag(120.0)
                             Text("5 min").tag(300.0)
